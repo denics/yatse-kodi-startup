@@ -1,5 +1,7 @@
 # Wake up your Kodi box using Yatse!
-This script allow you to wake up your raspberry pi kodi using a yatse remote.
+This script allow you to wake up your kodi using a yatse remote. 
+
+I have tested it in rasbian (raspberry pi), debian and ubuntu.
 
 ## Add the Start/Stop Script to init.d
 
