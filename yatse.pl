@@ -13,7 +13,7 @@ my $daemonName    = "yatse";
 # used for "infinte loop" construct - allows daemon mode to gracefully exit
 my $dieNow        = 0;                                     
 # number of seconds to wait between "do something" execution after queue is clear
-my $sleepMainLoop = 120;                                   
+my $sleepMainLoop = 10;                                   
 # 1= logging is on / 0= logging is off - use for debug
 my $logging       = 1;
 # log file path
@@ -22,8 +22,6 @@ my $logFile       = $logFilePath . $daemonName . ".log";
 # PID file path
 my $pidFilePath   = "/var/run/";
 my $pidFile       = $pidFilePath . $daemonName . ".pid";
-# Kodi pid file
-my $kodipid	  = File::Pid->new( { file => '/var/run/kodi.pid', } );
 
 my($sock, $newmsg, $hishost, $MAXLEN, $PORTNO);
 
@@ -51,6 +49,8 @@ POSIX::setsid() or die "Can't start a new session.";
 $SIG{INT} = $SIG{TERM} = $SIG{HUP} = \&signalHandler;
 $SIG{PIPE} = 'ignore';
 
+# Kodi pid file
+my $kodipid	  = File::Pid->new( { file => '/var/run/kodi.pid', } );
 # create pid file in /var/run/
 my $pidfile = File::Pid->new( { file => $pidFile, } );
 $pidfile->write or die "Can't write PID file, /dev/null: $!";
@@ -60,33 +60,34 @@ if ($logging) {
     open LOG, ">>$logFile";
 	select((select(LOG), $|=1)[0]); # make the log file "hot" - turn off buffering
 }
+
+# inform we started correctly
+logEntry("Kodi wake up from Yatse");
+logEntry("©2015 - Denis Pitzalis");
+logEntry("Wait $sleepMainLoop seconds before doing anything");
  
 # "infinite" loop where some useful process happens
 until ($dieNow) {
-    sleep($sleepMainLoop);
+	sleep($sleepMainLoop);
+	# TODO secure connection and listen only from trusted (subnet or list?) IPs
+	$sock = IO::Socket::INET->new(LocalPort => $PORTNO,
+	Proto => 'udp') or die "Can't bind: $@";
+
+	logEntry("Waiting for a signal from Yatse remote on port $PORTNO");
     
-    $sock = IO::Socket::INET->new(LocalPort => $PORTNO, Proto => 'udp') 
-        or die "socket: $@";
-        
-    logEntry("Kodi wake up from Yatse\n");
-    logEntry("©2015 - Denis Pitzalis\n");
-    logEntry("Waiting for a signal from Yatse remote on port $PORTNO\n");
-    
-    while ($sock->recv($newmsg, $MAXLEN)) {
-        my($port, $ipaddr) = sockaddr_in($sock->peername);
-        $hishost = gethostbyaddr($ipaddr, AF_INET);
-        if (index($newmsg, $YatseWakeUp) != -1) {
-            logEntry("Yatse calling \n");
-            if ( my $num = $kodipid->running ) {
-	  	logEntry("Kodi is still running, doing nothing: $num \n");
-	    } else {
-		logEntry("Yatse starting kodi: $newmsg \n");
-            	system($cmd);
-	    }
-        }
-        $sock->send("CONFIRMED: $newmsg ");
-    }
-    die "recv: $!"; 
+  while ($sock->recv($newmsg, $MAXLEN)) {
+ 		if (index($newmsg, $YatseWakeUp) != -1) {
+			logEntry("Yatse calling \n");
+			if ( my $num = $kodipid->running ) {
+				logEntry("Kodi is still running, doing nothing: $num");
+			} else {
+				logEntry("Yatse starting kodi: $newmsg");
+				system($cmd);
+			}
+		}
+		$sock->send("CONFIRMED: $newmsg ");
+	}
+	die "recv: $!"; 
 }
  
 # add a line to the log file
