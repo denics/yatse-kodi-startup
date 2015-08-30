@@ -9,20 +9,21 @@ use POSIX;
 use IO::Socket;
 use File::Pid;
 
-# TODO: change "mydaemon" to the exact name of your daemon.
 my $daemonName    = "yatse";
 # used for "infinte loop" construct - allows daemon mode to gracefully exit
 my $dieNow        = 0;                                     
 # number of seconds to wait between "do something" execution after queue is clear
 my $sleepMainLoop = 120;                                   
 # 1= logging is on / 0= logging is off - use for debug
-my $logging       = 0;
+my $logging       = 1;
 # log file path
 my $logFilePath   = "/var/log/";                           
 my $logFile       = $logFilePath . $daemonName . ".log";
 # PID file path
 my $pidFilePath   = "/var/run/";
 my $pidFile       = $pidFilePath . $daemonName . ".pid";
+# Kodi pid file
+my $kodipid	  = File::Pid->new( { file => '/var/run/kodi.pid', } );
 
 my($sock, $newmsg, $hishost, $MAXLEN, $PORTNO);
 
@@ -67,15 +68,21 @@ until ($dieNow) {
     $sock = IO::Socket::INET->new(LocalPort => $PORTNO, Proto => 'udp') 
         or die "socket: $@";
         
-    print "Waiting for a signal from Yatse remote on port $PORTNO\n";
+    logEntry("Kodi wake up from Yatse\n");
+    logEntry("©2015 - Denis Pitzalis\n");
+    logEntry("Waiting for a signal from Yatse remote on port $PORTNO\n");
     
     while ($sock->recv($newmsg, $MAXLEN)) {
         my($port, $ipaddr) = sockaddr_in($sock->peername);
         $hishost = gethostbyaddr($ipaddr, AF_INET);
         if (index($newmsg, $YatseWakeUp) != -1) {
-            # Yatse is calling us!
-            logEntry("Yatse started: $newmsg \n");
-            system($cmd);
+            logEntry("Yatse calling \n");
+            if ( my $num = $kodipid->running ) {
+	  	logEntry("Kodi is still running, doing nothing: $num \n");
+	    } else {
+		logEntry("Yatse starting kodi: $newmsg \n");
+            	system($cmd);
+	    }
         }
         $sock->send("CONFIRMED: $newmsg ");
     }
@@ -94,7 +101,10 @@ sub logEntry {
  
 # catch signals and end the program if one is caught.
 sub signalHandler {
-	$dieNow = 1;    # this will cause the "infinite loop" to exit
+# this will cause the "infinite loop" to exit
+	$pidfile->remove;
+	logEntry("Yatse listener is closing. Good night!");
+	$dieNow = 1; 
 }
  
 # do this stuff when exit() is called.
