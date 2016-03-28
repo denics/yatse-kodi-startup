@@ -3,6 +3,8 @@ This script allows you to start [kodi](http://kodi.tv/about/) on your media cent
 
 The script has been successfully tested on rasbian, archlinux ARM (raspberry pi), debian and ubuntu.
 
+*UPDATE* You can find last version written in Python here: https://github.com/danifr/wol-kodi/tree/python
+
 ## Add the Start/Stop Script to init.d
 
 ```
